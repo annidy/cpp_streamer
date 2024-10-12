@@ -32,16 +32,17 @@ HttpClient::~HttpClient()
     }
 }
 
-int HttpClient::Get(const std::string& subpath, std::map<std::string, std::string> headers) {
+int HttpClient::Get(const std::string& subpath, const std::map<std::string, std::string>& headers) {
     method_  = HTTP_GET;
     subpath_ = subpath;
+    headers_ = headers;
 
     LogInfof(logger_, "http get connect host:%s, port:%d, subpath:%s", host_.c_str(), port_, subpath.c_str());
     client_->Connect(host_, port_);
     return 0;
 }
 
-int HttpClient::Post(const std::string& subpath, std::map<std::string, std::string> headers, const std::string& data) {
+int HttpClient::Post(const std::string& subpath, const std::map<std::string, std::string>& headers, const std::string& data) {
     method_    = HTTP_POST;
     subpath_   = subpath;
     post_data_ = data;
@@ -56,6 +57,10 @@ int HttpClient::Post(const std::string& subpath, std::map<std::string, std::stri
 void HttpClient::Close() {
     LogInfof(logger_, "http close...");
     client_->Close();
+}
+
+TcpClient* HttpClient::GetTcpClient() {
+    return client_;
 }
 
 void HttpClient::OnConnect(int ret_code) {
@@ -150,7 +155,7 @@ void HttpClient::OnRead(int ret_code, const char* data, size_t data_size) {
                 pos = lines_vec[i].find(":");
                 assert(pos != std::string::npos);
                 std::string key   = lines_vec[i].substr(0, pos);
-                std::string value = lines_vec[i].substr(pos + 1);
+                std::string value = lines_vec[i].substr(pos + 2);
 
                 if (key == "Content-Length") {
                     resp_ptr_->content_length_ = atoi(value.c_str());

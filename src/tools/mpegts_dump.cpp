@@ -2,6 +2,7 @@
 #include "cpp_streamer_factory.hpp"
 #include "logger.hpp"
 #include "media_packet.hpp"
+#include "h264_h265_header.hpp"
 
 #include <stdint.h>
 #include <stddef.h>

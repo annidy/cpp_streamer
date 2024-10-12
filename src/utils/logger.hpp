@@ -1,5 +1,6 @@
 #ifndef LOGGER_HPP
 #define LOGGER_HPP
+#include "timeex.hpp"
 
 #include <string>
 #include <stdint.h>
@@ -7,15 +8,15 @@
 #include <cstdio> // std::snprintf()
 #include <stdexcept>
 #include <assert.h>
-#include "timeex.hpp"
 #include <stdio.h>
 #include <sstream>
 #include <iostream>
+#include <vector>
 
 namespace cpp_streamer
 {
 
-#define LOGGER_BUFFER_SIZE (20*1024)
+#define LOGGER_BUFFER_SIZE (2*1024*1024)
 
 enum LOGGER_LEVEL {
     LOGGER_DEBUG_LEVEL,
@@ -31,9 +32,12 @@ public:
     Logger(const std::string filename = "", enum LOGGER_LEVEL level = LOGGER_INFO_LEVEL):filename_(filename)
     , level_(level)
     {
+        buffer_ = new char[buffer_len_];
     }
     ~Logger()
     {
+        delete[] buffer_;
+        buffer_ = nullptr;
     }
 
 public:
@@ -52,11 +56,18 @@ public:
     enum LOGGER_LEVEL GetLevel() {
         return level_;
     }
+    void AllocBuffer(size_t len) {
+        if (buffer_) {
+            delete[] buffer_;
+        }
+        buffer_ = new char[len];
+        buffer_len_ = len;
+    }
     char* GetBuffer() {
         return buffer_;
     }
     size_t BufferSize() {
-        return sizeof(buffer_);
+        return buffer_len_;
     }
     void Logf(const char* level, const char* buffer) {
         std::stringstream ss;
@@ -82,9 +93,17 @@ public:
 private:
     std::string filename_;
     enum LOGGER_LEVEL level_;
-    char buffer_[LOGGER_BUFFER_SIZE];
+    char* buffer_ = nullptr;
+    size_t buffer_len_ = LOGGER_BUFFER_SIZE;
     bool console_enable_ = false;
 };
+
+inline void LogError(Logger* logger, const char* data) {
+    if (logger == nullptr || logger->GetLevel() > LOGGER_INFO_LEVEL) {
+        return;
+    }
+    logger->Logf("W", data);
+}
 
 inline void LogErrorf(Logger* logger, const char* fmt, ...) {
     if (logger == nullptr || logger->GetLevel() > LOGGER_ERROR_LEVEL) {
@@ -102,6 +121,13 @@ inline void LogErrorf(Logger* logger, const char* fmt, ...) {
     logger->Logf("E", buffer);
 }
 
+inline void LogWarn(Logger* logger, const char* data) {
+    if (logger == nullptr || logger->GetLevel() > LOGGER_INFO_LEVEL) {
+        return;
+    }
+    logger->Logf("W", data);
+}
+
 inline void LogWarnf(Logger* logger, const char* fmt, ...) {
     if (logger == nullptr || logger->GetLevel() > LOGGER_WARN_LEVEL) {
         return;
@@ -111,11 +137,17 @@ inline void LogWarnf(Logger* logger, const char* fmt, ...) {
     va_list ap;
  
     va_start(ap, fmt);
-    int ret_len = vsnprintf(buffer, bsize, fmt, ap);
-    buffer[ret_len] = 0;
+    vsnprintf(buffer, bsize, fmt, ap);
     va_end(ap);
 
     logger->Logf("W", buffer);
+}
+
+inline void LogInfo(Logger* logger, const char* data) {
+    if (logger == nullptr || logger->GetLevel() > LOGGER_INFO_LEVEL) {
+        return;
+    }
+    logger->Logf("I", data);
 }
 
 inline void LogInfof(Logger* logger, const char* fmt, ...) {
@@ -127,11 +159,20 @@ inline void LogInfof(Logger* logger, const char* fmt, ...) {
     va_list ap;
  
     va_start(ap, fmt);
-    int ret_len = vsnprintf(buffer, bsize, fmt, ap);
-    buffer[ret_len] = 0;
+    vsnprintf(buffer, bsize, fmt, ap);
+    //int ret_len = vsnprintf(buffer, bsize, fmt, ap);
+    //buffer[ret_len] = 0;
     va_end(ap);
 
+    //std::cout << "loginfo size:" << bsize << ", str len:" << ret_len << "\r\n\r\n";
     logger->Logf("I", buffer);
+}
+
+inline void LogDebug(Logger* logger, const char* data) {
+    if (logger == nullptr || logger->GetLevel() > LOGGER_INFO_LEVEL) {
+        return;
+    }
+    logger->Logf("D", data);
 }
 
 inline void LogDebugf(Logger* logger, const char* fmt, ...) {
@@ -147,16 +188,16 @@ inline void LogDebugf(Logger* logger, const char* fmt, ...) {
     buffer[ret_len] = 0;
     va_end(ap);
 
-    logger->Logf("I", buffer);
+    logger->Logf("D", buffer);
 }
 
-inline void LogInfoData(Logger* logger, uint8_t* data, size_t len, const char* dscr) {
+inline void LogInfoData(Logger* logger, const uint8_t* data, size_t len, const char* dscr) {
     if (!logger || logger->GetLevel() > LOGGER_INFO_LEVEL) {
         return;
     }
     char print_data[16*1024];
     size_t print_len = 0;
-    const int MAX_LINES = 12;
+    const int MAX_LINES = 100;
     int line = 0;
     int index = 0;
     print_len += snprintf(print_data, sizeof(print_data), "%s:", dscr);

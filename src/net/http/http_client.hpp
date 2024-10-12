@@ -46,9 +46,10 @@ public:
     virtual ~HttpClient();
 
 public:
-    int Get(const std::string& subpath, std::map<std::string, std::string> headers);
-    int Post(const std::string& subpath, std::map<std::string, std::string> headers, const std::string& data);
+    int Get(const std::string& subpath, const std::map<std::string, std::string>& headers);
+    int Post(const std::string& subpath, const std::map<std::string, std::string>& headers, const std::string& data);
     void Close();
+    TcpClient* GetTcpClient();
     
 private:
     virtual void OnConnect(int ret_code) override;

@@ -110,6 +110,13 @@ enum HEVC_NALU_TYPE
 
 #define GET_HEVC_NALU_TYPE(code) (HEVC_NALU_TYPE)((code & 0x7E)>>1)
 
+typedef struct Hevc_Header_S {
+    uint8_t forbid;
+    uint8_t nalu_type;
+    uint8_t layer_id;
+    uint8_t tid;
+} Hevc_Header;
+
 typedef struct HEVC_NALU_DATA_S {
     std::vector<uint8_t>  nalu_data;
 } HEVC_NALU_DATA;
@@ -141,6 +148,24 @@ typedef struct HEVC_DEC_CONF_RECORD_S {
     uint8_t  lengthsize_minusone;
     std::vector<HEVC_NALUnit> nalu_vec;
 } HEVC_DEC_CONF_RECORD;
+
+// 9.3 L-HEVC elementary stream structure in ISO IEC 14496-15-2022.pdf
+typedef struct LHEVC_DEC_CONF_RECORD_S {
+    uint8_t  configuration_version;
+    uint16_t reserved1:4;
+    uint16_t min_spatial_segmentation_idc:12;
+
+    uint8_t reserved2:6;
+    uint8_t parallelismType:2;
+
+    uint8_t reserved3:2;
+    uint8_t numTemporalLayers:3;
+    uint8_t temporalIdNested: 1;
+    uint8_t lengthSizeMinusOne:2;
+    
+    uint8_t numOfArrays;
+    std::vector<HEVC_NALUnit> nalu_vec;
+} LHEVC_DEC_CONF_RECORD;
 
 static const uint8_t H264_START_CODE[4] = {0x00, 0x00, 0x00, 0x01};
 static const uint8_t H265_START_CODE[4] = {0x00, 0x00, 0x00, 0x01};
@@ -208,7 +233,6 @@ bool AnnexB2Avcc(uint8_t* data, size_t len, std::vector<std::shared_ptr<DataBuff
 
 bool Avcc2Nalus(uint8_t* data, size_t len, std::vector<std::shared_ptr<DataBuffer>>& nalus);
 
-
 int GetSpsPpsFromExtraData(uint8_t *pps, size_t& pps_len, 
                            uint8_t *sps, size_t& sps_len, 
                            const uint8_t *extra_data, size_t extra_len);
@@ -221,6 +245,15 @@ int GetVpsSpsPpsFromHevcDecInfo(HEVC_DEC_CONF_RECORD* hevc_dec_info,
 
 int GetHevcDecInfoFromExtradata(HEVC_DEC_CONF_RECORD* hevc_dec_info, 
                                 const uint8_t *extra_data, size_t extra_len);
+
+std::string HevcDecInfoDemp(HEVC_DEC_CONF_RECORD* hevc_dec_info);
+
+void GetHevcHeader(uint8_t* data, Hevc_Header& header);
+std::string HevcHeaderDump(const Hevc_Header& header);
+
+int GetLHevcDecInfoFromExtradata(LHEVC_DEC_CONF_RECORD* hevc_dec_info, 
+                                const uint8_t *extra_data, size_t extra_len);
+std::string LHevcDecInfoDump(LHEVC_DEC_CONF_RECORD* hevc_dec_info);
 
 }
 #endif

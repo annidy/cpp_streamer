@@ -31,6 +31,31 @@ ELSEIF (UNIX)
 target_link_libraries(mpegtsdump pthread rt dl z m)
 ENDIF ()
 
+################################################################
+## example: mp4dump
+## read a mp4 file --> mp4demux streamer --> dump mp4 information
+add_executable(mp4dump
+            ${PROJECT_SOURCE_DIR}/src/cpp_streamer_factory.cpp
+            ${PROJECT_SOURCE_DIR}/src/format/h264_h265_header.cpp
+            ${PROJECT_SOURCE_DIR}/src/tools/mp4dump.cpp)
+add_dependencies(mp4dump mp4demux)
+IF (APPLE)
+target_link_libraries(mp4dump pthread dl z m)
+ELSEIF (UNIX)
+target_link_libraries(mp4dump pthread rt dl z m)
+ENDIF ()
+
+## example: mp4toflv
+## read a mp4 file --> mp4demux streamer --> dump flv information
+add_executable(mp4toflv
+            ${PROJECT_SOURCE_DIR}/src/cpp_streamer_factory.cpp
+            ${PROJECT_SOURCE_DIR}/src/tools/mp4toflv_streamer.cpp)
+add_dependencies(mp4toflv mp4demux)
+IF (APPLE)
+target_link_libraries(mp4toflv pthread dl z m)
+ELSEIF (UNIX)
+target_link_libraries(mp4toflv pthread rt dl z m)
+ENDIF ()
 
 ################################################################
 ## example: flv2flv
@@ -235,4 +260,60 @@ IF (APPLE)
 target_link_libraries(udp_server_demo dl z m ssl crypto pthread uv)
 ELSEIF (UNIX)
 target_link_libraries(udp_server_demo rt dl z m ssl crypto pthread uv)
+ENDIF ()
+
+################################################################
+# example: websocket client async demo
+# the text/data sending operator is not happen in the uv loop thread.
+add_executable(ws_client_async_demo
+            ${PROJECT_SOURCE_DIR}/src/net/http/http_client.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_client.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/ws_session_base.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_frame.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_pub.cpp
+            ${PROJECT_SOURCE_DIR}/src/utils/byte_crypto.cpp
+            ${PROJECT_SOURCE_DIR}/src/utils/base64.cpp
+            ${PROJECT_SOURCE_DIR}/src/tools/ws_client_demo.cpp)
+add_dependencies(ws_client_async_demo uv openssl)
+IF (APPLE)
+target_link_libraries(ws_client_async_demo dl z m ssl crypto pthread uv)
+ELSEIF (UNIX)
+target_link_libraries(ws_client_async_demo rt dl z m ssl crypto pthread uv)
+ENDIF ()
+
+################################################################
+# example: websocket client demo
+add_executable(ws_client_demo
+            ${PROJECT_SOURCE_DIR}/src/net/http/http_client.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_client.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/ws_session_base.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_frame.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_pub.cpp
+            ${PROJECT_SOURCE_DIR}/src/utils/byte_crypto.cpp
+            ${PROJECT_SOURCE_DIR}/src/utils/base64.cpp
+            ${PROJECT_SOURCE_DIR}/src/tools/ws_client_demo.cpp)
+add_dependencies(ws_client_demo uv openssl)
+IF (APPLE)
+target_link_libraries(ws_client_demo dl z m ssl crypto pthread uv)
+ELSEIF (UNIX)
+target_link_libraries(ws_client_demo rt dl z m ssl crypto pthread uv)
+ENDIF ()
+
+################################################################
+# example: websocket server demo
+add_executable(ws_server_demo
+            ${PROJECT_SOURCE_DIR}/src/net/http/http_client.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_server.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_session.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/ws_session_base.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_frame.cpp
+            ${PROJECT_SOURCE_DIR}/src/net/http/websocket/websocket_pub.cpp
+            ${PROJECT_SOURCE_DIR}/src/utils/byte_crypto.cpp
+            ${PROJECT_SOURCE_DIR}/src/utils/base64.cpp
+            ${PROJECT_SOURCE_DIR}/src/tools/ws_server_demo.cpp)
+add_dependencies(ws_server_demo uv openssl)
+IF (APPLE)
+target_link_libraries(ws_server_demo dl z m ssl crypto pthread uv)
+ELSEIF (UNIX)
+target_link_libraries(ws_server_demo rt dl z m ssl crypto pthread uv)
 ENDIF ()

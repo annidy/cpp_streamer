@@ -10,6 +10,8 @@
 namespace cpp_streamer
 {
 
+#define BOOL2STRING(x) ((x) ? "true" : "false")
+
 inline int StringSplit(const std::string& input_str, const std::string& split_str, std::vector<std::string>& output_vec) {
     if (input_str.length() == 0) {
         return 0;
@@ -31,21 +33,58 @@ inline int StringSplit(const std::string& input_str, const std::string& split_st
     return output_vec.size();
 }
 
-inline std::string DataToString(uint8_t* data, size_t len) {
+inline std::string DataToString(char* data, size_t len) {
+    char print_data[4*1024];
+    size_t str_len = 0;
+
+    size_t total = sizeof(print_data);
+    for (size_t i = 0; i < len; i++) {
+        str_len += snprintf(print_data + str_len, total - str_len,  "%c", data[i]);
+    }
+    return print_data;
+}
+
+inline std::string DataToString(uint8_t* data, size_t len, bool return_flag = true) {
     char print_data[4*1024];
     size_t print_len = 0;
     const int max_print = 512;
 
-    for (size_t index = 0; index < (len > max_print ? max_print : len); index++) {
-        if ((index%16) == 0) {
-            print_len += snprintf(print_data + print_len, sizeof(print_data) - print_len, "\r\n");
-        }
-        
+    for (size_t index = 0; index < (len > max_print ? max_print : len); index++) {        
         print_len += snprintf(print_data + print_len, sizeof(print_data) - print_len,
             " %02x", data[index]);
+        if (return_flag) {
+            if ((++index%16) == 0) {
+                print_len += snprintf(print_data + print_len, sizeof(print_data) - print_len, "\r\n");
+            }
+        }
     }
     return std::string(print_data);
 }
+
+inline std::string Data2HexString(uint8_t* data, size_t len) {
+    std::vector<char> c0c1_desc(len * 4);
+    char* desc = (char*)(&c0c1_desc[0]);
+    int desc_len = 0;
+
+    for (size_t index = 0; index < len; index++) {
+        desc_len += sprintf(desc + desc_len, "%02x ", data[index]);
+    }
+
+    return std::string(desc);
+}
+
+inline std::string Uint32ToString(uint32_t value) {
+    std::string ret = "";
+    char c = (char)((value >> 24) & 0xff);
+    ret += ((c != 0) ? c : ' ');
+    c = (char)((value >> 16) & 0xff);
+    ret += ((c != 0) ? c : ' ');
+    c = (char)((value >> 8) & 0xff);
+    ret += ((c != 0) ? c : ' ');
+    c = (char)(value & 0xff);
+    ret += ((c != 0) ? c : ' ');
+    return ret;
+};
 
 inline void String2Lower(std::string& data) {
     for (auto& c : data) {

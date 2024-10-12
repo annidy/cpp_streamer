@@ -83,18 +83,17 @@ int FlvMuxer::SourceData(Media_Packet_Ptr pkt_ptr) {
             return -1;
         }
 
-        //LogInfoData(logger_, p, nalu_type_pos + 1, "nalu type");
         if (len < (int)sizeof(sps_) && len < (int)sizeof(pps_)) {
             if (H264_IS_SPS(p[nalu_type_pos])) {
                 memcpy(sps_, p + nalu_type_pos, len - nalu_type_pos);
                 sps_len_ = len - nalu_type_pos;
-                LogInfoData(logger_, sps_, sps_len_, "sps data");
+                // LogInfoData(logger_, sps_, sps_len_, "sps data");
                 return 0;
             }
             if (H264_IS_PPS(p[nalu_type_pos])) {
                 memcpy(pps_, p + nalu_type_pos, len - nalu_type_pos);
                 pps_len_ = len - nalu_type_pos;
-                LogInfoData(logger_, pps_, pps_len_, "pps data");
+                // LogInfoData(logger_, pps_, pps_len_, "pps data");
                 return 0;
             }
 
@@ -110,7 +109,6 @@ int FlvMuxer::SourceData(Media_Packet_Ptr pkt_ptr) {
 
             get_video_extradata(pps_, pps_len_, sps_, sps_len_,
                     extra_data, extra_len);
-            LogInfoData(logger_, extra_data, extra_len, "Avcc header");
 
             Media_Packet_Ptr seq_ptr = std::make_shared<Media_Packet>();
             seq_ptr->copy_properties(*(pkt_ptr.get()));
@@ -126,6 +124,7 @@ int FlvMuxer::SourceData(Media_Packet_Ptr pkt_ptr) {
             p--;
         }
         ByteStream::Write4Bytes(p, nalu_len);
+
         return InputPacket(pkt_ptr);
     }
     return InputPacket(pkt_ptr);

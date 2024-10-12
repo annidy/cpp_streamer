@@ -68,7 +68,7 @@ public:
 
 public:
     virtual std::string StreamerName() override {
-        return "flv2flv_manager";
+        return "flvdump";
     }
     virtual void SetLogger(Logger* logger) override {
         logger_ = logger;
@@ -81,10 +81,19 @@ public:
     }
     virtual int SourceData(Media_Packet_Ptr pkt_ptr) override {
         LogInfof(logger_, "packet:%s", pkt_ptr->Dump().c_str());
-        if (pkt_ptr->av_type_ == MEDIA_AUDIO_TYPE) {
-            LogInfoData(logger_, (uint8_t*)pkt_ptr->buffer_ptr_->Data(), 
-                    pkt_ptr->buffer_ptr_->DataLen(), "audio data");
+        if (pkt_ptr->av_type_ == MEDIA_VIDEO_TYPE) {
+            if (pkt_ptr->is_seq_hdr_) {
+                LogInfoData(logger_, (uint8_t*)pkt_ptr->buffer_ptr_->Data(), 
+                        pkt_ptr->buffer_ptr_->DataLen(), "video seq data");
+            }
         }
+        if (pkt_ptr->av_type_ == MEDIA_AUDIO_TYPE) {
+            if (pkt_ptr->is_seq_hdr_) {
+                LogInfoData(logger_, (uint8_t*)pkt_ptr->buffer_ptr_->Data(), 
+                        pkt_ptr->buffer_ptr_->DataLen(), "audio seq data");
+            }
+        }
+
         return 0;
     }
     virtual void StartNetwork(const std::string& url, void* loop_handle) override {

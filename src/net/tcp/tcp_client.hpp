@@ -161,6 +161,9 @@ public:
     }
 
     void AsyncRead() {
+        if (!is_connect_) {
+            return;
+        }
         if (read_start_) {
             return;
         }

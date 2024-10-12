@@ -16,6 +16,17 @@ SET(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/output/lib)
 # set pkgconfig path
 set(CMAKE_PREFIX_PATH "${CMAKE_BINARY_DIR}/output/lib/pkgconfig")
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+if (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+message("-----This is MacOs arm64")
+else()
+message("-----This is MacOs Intel")
+endif()
+else()
+message("-----This is system ${CMAKE_SYSTEM_NAME}")
+endif()
+message("")
+
 # set include path
 include_directories(${CMAKE_BINARY_DIR}/output/include
                     ${CMAKE_BINARY_DIR}/output/include/srtp2
@@ -23,6 +34,7 @@ include_directories(${CMAKE_BINARY_DIR}/output/include
                     src
                     src/format
                     src/format/flv
+                    src/format/mp4
                     src/format/mpegts
                     src/format/amf
                     src/format/sdp
@@ -98,6 +110,19 @@ target_link_libraries(mpegtsdemux pthread rt dl z m)
 ENDIF ()
 
 ################################################################
+## mp4demux streamer module
+add_library(mp4demux SHARED
+            ./src/format/audio_header.cpp
+            ./src/format/h264_h265_header.cpp
+            ./src/format/opus_header.cpp
+            ./src/format/mp4/mp4_demux.cpp)
+IF (APPLE)
+target_link_libraries(mp4demux pthread dl z m)
+ELSEIF (UNIX)
+target_link_libraries(mp4demux pthread rt dl z m)
+ENDIF ()
+
+################################################################
 ## timesync streamer module
 add_library(timesync SHARED
             ./src/net/timesync/timesync.cpp)
@@ -111,6 +136,7 @@ ENDIF ()
 ################################################################
 ## rtmpplay streamer module
 add_library(rtmpplay SHARED
+            ./src/format/h264_h265_header.cpp
             ./src/net/rtmp/chunk_stream.cpp
             ./src/net/rtmp/rtmp_client_session.cpp
             ./src/net/rtmp/rtmp_control_handler.cpp
