@@ -9,6 +9,8 @@ WebSocketServer::WebSocketServer(uint16_t port, uv_loop_t* loop, Logger* logger)
                                                                             , logger_(logger)
 {
     server_ptr_.reset(new TcpServer(loop_, port_, this));
+    StartTimer();
+    LogInfof(logger_, "WebSocketServer construct, port:%d", port);
 }
 
 WebSocketServer::WebSocketServer(uint16_t port,
@@ -22,7 +24,9 @@ WebSocketServer::WebSocketServer(uint16_t port,
                                         , key_file_(key_file)
                                         , cert_file_(cert_file)
 {
+    server_ptr_.reset(new TcpServer(loop_, port_, this));
     StartTimer();
+    LogInfof(logger_, "WebSocketServer construct, port:%d, key file:%s, cert file:%s", port, key_file_.c_str(), cert_file_.c_str());
 }
 
 WebSocketServer::~WebSocketServer()
@@ -49,7 +53,8 @@ void WebSocketServer::OnTimer() {
     auto iter = sessions_.begin();
 
     while (iter != sessions_.end()) {
-        if (now_ms - iter->second->GetLastPongMs() > 20 * 1000) {
+        if (now_ms - iter->second->GetLastPongMs() > 15 * 1000) {
+            LogInfof(logger_, "ping/pong is timeout, remove ws session:%s", iter->second->GetRemoteAddress().c_str());
             iter = sessions_.erase(iter);
         } else {
             iter++;

@@ -49,7 +49,7 @@ private:
     void SendHttpResponse();
     void SendErrorResponse();
     void OnHandleFrame(const uint8_t* data, size_t data_size);
-    void GenHashcode();
+    std::string GenHashcode();
 
 private:
     WebSocketServer* server_    = nullptr;

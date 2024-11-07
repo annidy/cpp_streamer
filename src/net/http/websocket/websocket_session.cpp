@@ -51,7 +51,7 @@ void WebSocketSession::OnTimer() {
     }
     int64_t now_ms = now_millisec();
 
-    if (now_ms - last_send_ping_ms_ > 1000) {
+    if (now_ms - last_send_ping_ms_ > 2000) {
         last_send_ping_ms_ = now_ms;
         SendPingFrame(now_ms);
     }
@@ -113,12 +113,12 @@ void WebSocketSession::OnRead(int ret_code, const char* data, size_t data_size) 
 void WebSocketSession::SendHttpResponse() {
     std::stringstream ss;
 
-    GenHashcode();
+    std::string hash_code = GenHashcode();
 
     ss << "HTTP/1.1 101 Switching Protocols" << "\r\n";
     ss << "Upgrade: websocket" << "\r\n";
     ss << "Connection: Upgrade" << "\r\n";
-    ss << "Sec-WebSocket-Accept: " << hash_code_ << "\r\n";
+    ss << "Sec-WebSocket-Accept: " << hash_code << "\r\n";
 
     ss << "\r\n";
 
@@ -234,7 +234,7 @@ int WebSocketSession::OnHandleHttpRequest() {
     return 0;
 }
 
-void WebSocketSession::GenHashcode() {
+std::string WebSocketSession::GenHashcode() {
     std::string sec_key = sec_ws_key_;
 	sec_key += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	unsigned char hash[20];
@@ -245,7 +245,7 @@ void WebSocketSession::GenHashcode() {
     SHA1_Final(hash, &sha1);
 	
 	hash_code_ = Base64Encode(hash, sizeof(hash));
-    return;
+    return hash_code_;
 }
 
 void WebSocketSession::HandleWsData(uint8_t* data, size_t len, int op_code) {
