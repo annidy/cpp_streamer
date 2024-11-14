@@ -31,9 +31,8 @@ void* CppStreamerFactory::GetHandle(const std::string& streamer_name) {
     name += ".dylib";
     #endif
 
-    LogInfof(s_logger_, "try to dlopen %s", name.c_str());
-
     if (name2handle_.find(streamer_name) == name2handle_.end()) {
+        LogInfof(s_logger_, "try to dlopen %s", name.c_str());
         handle = dlopen(name.c_str(), RTLD_LAZY);
         if (handle == nullptr) {
             LogErrorf(s_logger_, "dlopen %s error:%s", name.c_str(), dlerror());
@@ -54,7 +53,7 @@ CppStreamerInterface* CppStreamerFactory::MakeStreamer(const std::string& stream
     handle = GetHandle(streamer_name);
     
     snprintf(make_func_name, sizeof(make_func_name), "make_%s_streamer", streamer_name.c_str());
-    LogInfof(s_logger_, "call function:%s", make_func_name);
+    LogDebugf(s_logger_, "call function:%s", make_func_name);
 
     MAKE_STREAMER_FUN_PTR maker_fun = (MAKE_STREAMER_FUN_PTR)dlsym(handle, make_func_name);
     if ((err_msg = dlerror()) != NULL) {

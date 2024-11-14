@@ -16,17 +16,21 @@ namespace cpp_streamer
 typedef enum
 {
     BROADCASTER_INIT,
+    BROADCASTER_ENTER_ROOM,
     BROADCASTER_REQUEST,//create broadcaster 
     BROADCASTER_TRANSPORT,//create transport
     BROADCASTER_TRANSPORT_CONNECT,//create transport connect
     BROADCASTER_VIDEO_CONSUME,//video consume
     BROADCASTER_AUDIO_CONSUME,//audio consume
+    BROADCASTER_EXIT_ROOM,
     BROADCASTER_DONE
 } BROADCASTER_STATE;
 
+void OnConsumeDelay(uv_timer_t* handle);
 
 class MsPull : public CppStreamerInterface , public HttpClientCallbackI, public PCStateReportI, public MediaCallbackI
 {
+    friend void OnConsumeDelay(uv_timer_t* handle);
 public:
     MsPull();
     virtual ~MsPull();
@@ -40,7 +44,7 @@ public:
     virtual void StartNetwork(const std::string& url, void* loop_handle) override;
     virtual void AddOption(const std::string& key, const std::string& value) override;
     virtual void SetReporter(StreamerReport* reporter) override;
-
+    virtual void StopNetwork() override;
 protected:
     virtual void OnHttpRead(int ret, std::shared_ptr<HttpClientResponse> resp_ptr) override;
 
@@ -61,8 +65,11 @@ private:
             uint16_t& port, 
             std::string& roomId, 
             std::string& userId,
+            std::string& produceUserId, 
             std::string& vProduceId,
             std::string& aProduceId);
+    void EnterRoomRequest();
+    void ExitRoomRequest();
     void BroadCasterRequest();
     void TransportRequest();
     void TransportConnectRequest();
@@ -73,7 +80,8 @@ private:
     void HandleTransportConnectResponse(std::shared_ptr<HttpClientResponse> resp_ptr);
     void HandleVideoConsumeResponse(std::shared_ptr<HttpClientResponse> resp_ptr);
     void HandleAudioConsumeResponse(std::shared_ptr<HttpClientResponse> resp_ptr);
- 
+    void HandleEnterRoomResponse(std::shared_ptr<HttpClientResponse> resp_ptr);
+    void HandleExitRoomResponse(std::shared_ptr<HttpClientResponse> resp_ptr);
 private:
     void Report(const std::string& type, const std::string& value);
 
@@ -82,6 +90,8 @@ private:
     std::string name_;
 
 private:
+    HttpClient* hc_enter_           = nullptr;
+    HttpClient* hc_exit_           = nullptr;
     HttpClient* hc_req_           = nullptr;
     HttpClient* hc_transport_     = nullptr;
     HttpClient* hc_trans_connect_ = nullptr;
@@ -89,12 +99,15 @@ private:
     HttpClient* hc_audio_consume_ = nullptr;
     uv_loop_t* loop_    = nullptr;
     PeerConnection* pc_ = nullptr;
+    uv_timer_t consume_delay_timer_ = {};
 
 private:
     std::string host_;
     uint16_t port_;
     std::string roomId_;
     std::string userId_;
+    std::string peerId_; // 自定义代理id
+    std::string producerUid_; // 要拉流的用户id
     BROADCASTER_STATE state_ = BROADCASTER_INIT;
     int64_t start_ms_ = -1;
 

@@ -85,7 +85,7 @@ public:
             return -1;
         }
         
-        LogInfof(logger_, "send server hello......");
+        LogDebugf(logger_, "send server hello......");
         cb_->PlaintextDataSend((char*)data, size);
  
         if ((r0 = BIO_reset(bio_out_)) != 1) {
@@ -151,7 +151,7 @@ public:
 
         r0 = SSL_do_handshake(ssl_); r1 = SSL_get_error(ssl_, r0);
         if (r0 == 1 && r1 == SSL_ERROR_NONE) {
-            LogInfof(logger_, "Ssl client final done");
+            LogDebugf(logger_, "Ssl client final done");
             state_ = TLS_CLIENT_READY;
             return 0;
         }

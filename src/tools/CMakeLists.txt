@@ -3,7 +3,7 @@ set(BUILD_OUTPUT_BASE ${CMAKE_BINARY_DIR}/output)
 set(PREFIX_DIR "${BUILD_OUTPUT_BASE}")
 set(INSTALL_RPATH "${PREFIX_DIR}/lib")
 
-SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/objs)
+SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 ################################################################
 ## example: flvdump

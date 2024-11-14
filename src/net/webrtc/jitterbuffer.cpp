@@ -37,10 +37,11 @@ void JitterBuffer::InputRtpPacket(int clock_rate,
     int64_t extend_seq = 0;
     bool reset = false;
     bool first_pkt = false;
-    size_t index = (buffer_index_++) % RTP_PACKET_MAX_SIZE;
+    size_t index = (buffer_index_++) % BUFFER_POOL_SIZE;
     uint8_t* buffer = pkt_buffers_[index];
 
     RtpPacket* input_pkt = pkt->Clone(buffer);
+    std::unique_ptr<RtpPacket> pkt_guard(input_pkt);
 
     if (!init_flag_) {
         init_flag_ = true;
@@ -96,7 +97,7 @@ void JitterBuffer::InputRtpPacket(int clock_rate,
         }
         return;
     } else if (extend_seq <= output_seq_) {
-        LogInfof(logger_, "receive old seq:%ld, output_seq:%ld media type:%d",
+        LogDebugf(logger_, "receive old seq:%ld, output_seq:%ld media type:%d",
                 extend_seq, output_seq_, pkt_info_ptr->media_type_);
         return;
     }
@@ -127,7 +128,7 @@ void JitterBuffer::CheckTimeout() {
 
         if (diff_t > buffer_timeout_) {
             if (pkt_info_ptr->media_type_ == MEDIA_VIDEO_TYPE) {
-                LogInfof(logger_, "timeout output type:%d, seq:%d, timeout:%ld",
+                LogDebugf(logger_, "timeout output type:%d, seq:%d, timeout:%ld",
                     pkt_info_ptr->media_type_, pkt_info_ptr->extend_seq_, buffer_timeout_);
             }
 

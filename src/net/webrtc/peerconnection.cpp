@@ -43,7 +43,7 @@ PeerConnection::PeerConnection(uv_loop_t* loop,
 
 PeerConnection::~PeerConnection()
 {
-    LogInfof(logger_, "destruct PeerConnection");
+    LogDebugf(logger_, "destruct PeerConnection");
     StopTimer();
     if (udp_client_) {
         delete udp_client_;
@@ -104,12 +104,12 @@ int PeerConnection::ParseAnswerSdp(const std::string& sdp) {
     if (answer_sdp_.ssrc_info_map_.empty()) {
         answer_sdp_.ssrc_info_map_ = offer_sdp_.ssrc_info_map_;
     }
-    LogInfof(logger_, "video ssrc:%u, video rtx ssrc:%u, audio ssrc:%u, rtx_enable:%s",
+    LogDebugf(logger_, "video ssrc:%u, video rtx ssrc:%u, audio ssrc:%u, rtx_enable:%s",
                 answer_sdp_.GetVideoSsrc(),
                 answer_sdp_.GetVideoRtxSsrc(),
                 answer_sdp_.GetAudioSsrc(),
                 answer_sdp_.IsVideoRtxEnable() ? "enable" : "disable");
-    LogInfof(logger_, "video pt:%d, video rtx pt:%d, audio pt:%d, video rate:%d, video rtx rate:%d, audio rate:%d",
+    LogDebugf(logger_, "video pt:%d, video rtx pt:%d, audio pt:%d, video rate:%d, video rtx rate:%d, audio rate:%d",
             answer_sdp_.GetVideoPayloadType(),
             answer_sdp_.GetVideoRtxPayloadType(),
             answer_sdp_.GetAudioPayloadType(),
@@ -117,7 +117,7 @@ int PeerConnection::ParseAnswerSdp(const std::string& sdp) {
             answer_sdp_.GetVideoRtxClockRate(),
             answer_sdp_.GetAudioClockRate());
  
-    LogInfof(logger_, "video nack:%s, audio nack:%s",
+    LogDebugf(logger_, "video nack:%s, audio nack:%s",
             answer_sdp_.IsVideoNackEnable() ? "true" : "false",
             answer_sdp_.IsAudioNackEnable() ? "true" : "false");
     if (pc_state_ >= PC_SDP_DONE_STATE) {
@@ -313,7 +313,7 @@ std::string PeerConnection::CreateOfferSdp(WebRtcSdpDirection direction_type) {
     offer_sdp_.video_cname_ = ByteCrypto::GetRandomString(16);
     offer_sdp_.audio_cname_ = ByteCrypto::GetRandomString(16);
 
-    LogInfof(logger_, "video ssrc:%u, rtx ssrc:%u",
+    LogDebugf(logger_, "video ssrc:%u, rtx ssrc:%u",
             offer_sdp_.video_ssrc_,
             offer_sdp_.video_rtx_ssrc_);
     SSRCInfo video_ssrc_info = {
@@ -384,7 +384,7 @@ int PeerConnection::HandleRtcpSr(uint8_t* data, int len) {
         } else if (audio_recv_stream_ && ssrc == audio_recv_stream_->GetSsrc()) {
             audio_recv_stream_->HandleRtcpSr(rr_pkt);
         } else {
-            LogInfof(logger_, "unkown rtcp sr ssrc:%u", ssrc);
+            LogDebugf(logger_, "unkown rtcp sr ssrc:%u", ssrc);
         }
         delete rr_pkt;
     } catch(CppStreamException& e) {
@@ -472,7 +472,7 @@ int PeerConnection::HandleRtcpPsFb(uint8_t* data, int data_len) {
 int PeerConnection::HandleXrDlrr(XrDlrrData* dlrr_block) {
     uint32_t ssrc = ntohl(dlrr_block->ssrc);
 
-    LogInfof(logger_, "Handle Xr Dlrr ssrc:%u", ssrc);
+    LogDebugf(logger_, "Handle Xr Dlrr ssrc:%u", ssrc);
     if (video_recv_stream_ && ssrc == video_recv_stream_->GetSsrc()) {
         video_recv_stream_->HandleXrDlrr(dlrr_block);
     }
@@ -610,7 +610,7 @@ void PeerConnection::OnRead(const char* data, size_t data_size, UdpTuple address
                 std::string ip = GetIpStr(pkt->xor_address_, port);
                 if ((pc_udp_port_ == 0) || pc_ipaddr_str_.empty()
                     || (ip != pc_ipaddr_str_) || (port != pc_udp_port_)) {
-                    LogInfof(logger_, "stun response update pc ipaddr:%s:%d",
+                    LogDebugf(logger_, "stun response update pc ipaddr:%s:%d",
                             ip.c_str(), port);
                     pc_ipaddr_str_ = ip;
                     pc_udp_port_ = port;
@@ -637,7 +637,7 @@ void PeerConnection::OnRead(const char* data, size_t data_size, UdpTuple address
 
        memcpy(dtls_data, data, data_size);
 
-       LogInfof(logger_, "receive dtls data size:%u", data_size);
+       LogDebugf(logger_, "receive dtls data size:%u", data_size);
        dtls_.OnDtlsData(dtls_data, dtls_len);
 
        return;
@@ -664,6 +664,7 @@ void PeerConnection::HandleRtpData(uint8_t* data, size_t len) {
         }
 
         RtpPacket* pkt = RtpPacket::Parse(data, len);
+        std::unique_ptr<RtpPacket> pkt_guard(pkt);
         if (!pkt) {
             return;
         }
@@ -680,14 +681,9 @@ void PeerConnection::HandleRtpData(uint8_t* data, size_t len) {
             jb_audio_.InputRtpPacket(audio_recv_stream_->GetClockRate(), pkt);
             return;
         } else {
-            uint32_t v_ssrc   = video_recv_stream_ ? video_recv_stream_->GetSsrc() : 0;
-            uint32_t rtx_ssrc = video_recv_stream_ ? video_recv_stream_->GetRtxSsrc() : 0;
-            uint32_t a_ssrc   = audio_recv_stream_ ? audio_recv_stream_->GetSsrc() : 0;
-            LogErrorf(logger_, "fail to find ssrc:%u, video ssrc:%u, video rtx ssrc:%u, audio ssrc:%u", 
-                    ssrc, v_ssrc, rtx_ssrc, a_ssrc);
         }
     } catch(CppStreamException& e) {
-        LogErrorf(logger_, "handle rtp data exception:%s", e.what());
+        LogDebugf(logger_, "handle rtp data exception:%s", e.what());
     }
 }
 
@@ -701,12 +697,12 @@ void PeerConnection::Report(const std::string& type, const std::string& value) {
 void PeerConnection::OnDtlsConnected(CRYPTO_SUITE_ENUM suite,
                 uint8_t* local_key, size_t local_key_len,
                 uint8_t* remote_key, size_t remote_key_len) {
-    LogInfoData(logger_, local_key, local_key_len, "on dtls connected srtp local key");
+    // LogInfoData(logger_, local_key, local_key_len, "on dtls connected srtp local key");
 
-    LogInfoData(logger_, remote_key, remote_key_len, "on dtls connected srtp remote key");
+    // LogInfoData(logger_, remote_key, remote_key_len, "on dtls connected srtp remote key");
 
     if (pc_state_ == PC_DTLS_DONE_STATE) {
-        LogInfof(logger_, "dtls is connected.");
+        LogDebugf(logger_, "dtls is connected.");
         return;
     }
     pc_state_ = PC_DTLS_DONE_STATE;
@@ -777,7 +773,7 @@ void PeerConnection::CreateVideoRecvStream() {
     
     has_rtx_ = answer_sdp_.IsVideoRtxEnable();
 
-    LogInfof(logger_, "create recv stream video ssrc:%u, nack:%s, pt:%d, rtx pt:%d, rtx ssrc:%u, has rtx:%s, clock rate:%d",
+    LogDebugf(logger_, "create recv stream video ssrc:%u, nack:%s, pt:%d, rtx pt:%d, rtx ssrc:%u, has rtx:%s, clock rate:%d",
             ssrc, video_nack ? "enable" : "disable",
             payload_type, rtx_payload, rtx_ssrc,
             has_rtx_ ? "enable" : "disable", clock_rate);
@@ -805,7 +801,7 @@ void PeerConnection::CreateAudioRecvStream() {
     int payload_type     = answer_sdp_.GetAudioPayloadType();
     int clock_rate       = answer_sdp_.GetAudioClockRate();
 
-    LogInfof(logger_, "create recv stream audio ssrc:%u, nack:%s, pt:%d, clock rate:%d",
+    LogDebugf(logger_, "create recv stream audio ssrc:%u, nack:%s, pt:%d, clock rate:%d",
             ssrc, audio_nack ? "enable" : "disable",
             payload_type, clock_rate);
 
@@ -830,7 +826,7 @@ void PeerConnection::CreateSendStream() {
     bool video_nack = answer_sdp_.IsVideoNackEnable();
     bool audio_nack = answer_sdp_.IsAudioNackEnable();
 
-    LogInfof(logger_, "create send stream video ssrc:%u, audio ssrc:%u, has rtx:%s, rtx ssrc:%u, rtx payload:%d",
+    LogDebugf(logger_, "create send stream video ssrc:%u, audio ssrc:%u, has rtx:%s, rtx ssrc:%u, rtx payload:%d",
             answer_sdp_.GetVideoSsrc(), answer_sdp_.GetAudioSsrc(),
             answer_sdp_.IsVideoRtxEnable() ? "true" : "false",
             answer_sdp_.GetVideoRtxSsrc(), 
@@ -873,7 +869,7 @@ void PeerConnection::CreateSendStream2() {
     bool video_nack = offer_sdp_.IsVideoNackEnable();
     bool audio_nack = offer_sdp_.IsAudioNackEnable();
 
-    LogInfof(logger_, "create send stream video ssrc:%u, audio ssrc:%u, has rtx:%s, rtx ssrc:%u, rtx payload:%d",
+    LogDebugf(logger_, "create send stream video ssrc:%u, audio ssrc:%u, has rtx:%s, rtx ssrc:%u, rtx payload:%d",
             answer_sdp_.GetVideoSsrc(), answer_sdp_.GetAudioSsrc(),
             answer_sdp_.IsVideoRtxEnable() ? "true" : "false",
             answer_sdp_.GetVideoRtxSsrc(), 
@@ -1702,7 +1698,7 @@ std::string PeerConnection::GetAudioCName() {
 }
 
 void PeerConnection::RtpPacketReset(std::shared_ptr<RtpPacketInfo> pkt_ptr) {
-    LogInfof(logger_, "rtp jitter buffer reset");
+    LogDebugf(logger_, "rtp jitter buffer reset");
 }
 
 void PeerConnection::RtpPacketOutput(std::shared_ptr<RtpPacketInfo> pkt_ptr) {
@@ -1723,7 +1719,7 @@ void PeerConnection::RtpPacketOutput(std::shared_ptr<RtpPacketInfo> pkt_ptr) {
 }
 
 void PeerConnection::PackHandleReset(std::shared_ptr<RtpPacketInfo> pkt_ptr) {
-    LogInfof(logger_, "pack handle reset");
+    LogDebugf(logger_, "pack handle reset");
     find_keyframe_ = true;
     if (video_recv_stream_) {
         video_recv_stream_->RequestKeyFrame(-1);

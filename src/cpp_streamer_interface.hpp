@@ -38,7 +38,8 @@ public:
     virtual void StartNetwork(const std::string& url, void* loop_handle) = 0;
     virtual void AddOption(const std::string& key, const std::string& value) = 0;
     virtual void SetReporter(StreamerReport* reporter) = 0;
-
+    virtual void StopNetwork() {};
+    
 protected:
     Logger* logger_ = nullptr;
     std::string name_;

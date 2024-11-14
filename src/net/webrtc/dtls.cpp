@@ -91,20 +91,20 @@ void ssl_info_callback(const SSL* dtls, int where, int r0) {
 
     if (where & SSL_CB_LOOP) {
         LogDebugf(logger, "DTLS: method=%s", method);
-        //LogInfof(logger, "DTLS: method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
+        //LogDebugf(logger, "DTLS: method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
         //    method, SSL_state_string(dtls), SSL_state_string_long(dtls), where, r0, r1);
     } else if (where & SSL_CB_ALERT) {
         method = (where & SSL_CB_READ) ? "read":"write";
 
         alert_type = SSL_alert_type_string_long(r0);
         alert_desc = SSL_alert_desc_string(r0);
-        LogInfof(logger, "dtls alert type:%s, alert_desc:%s", alert_type, alert_desc);
+        LogDebugf(logger, "dtls alert type:%s, alert_desc:%s", alert_type, alert_desc);
 
         if (!strcmp(alert_type, "warning") && !strcmp(alert_desc, "CN")) {
-            LogInfof(logger, "DTLS: SSL3 alert method=%s type=%s, desc=%s(%s), where=%d, ret=%d, r1=%d",
+            LogDebugf(logger, "DTLS: SSL3 alert method=%s type=%s, desc=%s(%s), where=%d, ret=%d, r1=%d",
                 method, alert_type, alert_desc, SSL_alert_desc_string_long(r0), where, r0, r1);
         } else {
-            LogInfof(logger, "DTLS: SSL3 alert method=%s type=%s, desc=%s(%s), where=%d, ret=%d, r1=%d",
+            LogDebugf(logger, "DTLS: SSL3 alert method=%s type=%s, desc=%s(%s), where=%d, ret=%d, r1=%d",
                 method, alert_type, alert_desc, SSL_alert_desc_string_long(r0), where, r0, r1);
         }
 
@@ -118,21 +118,21 @@ void ssl_info_callback(const SSL* dtls, int where, int r0) {
         is_close_notify = !strcmp(alert_desc, "CN");
         state = is_fatal ? DTLS_STATE_FAILED : (is_warning && is_close_notify ? DTLS_STATE_CLOSED : DTLS_STATE_NONE);
         if (state != DTLS_STATE_NONE) {
-            LogInfof(logger, "DTLS: Notify ctx=%p, state=%d, fatal=%d, warning=%d, cn=%d",
+            LogDebugf(logger, "DTLS: Notify ctx=%p, state=%d, fatal=%d, warning=%d, cn=%d",
                 ctx, state, is_fatal, is_warning, is_close_notify);
             ctx->OnState(state, alert_type, alert_desc);
         }
     } else if (where & SSL_CB_EXIT) {
         if (!r0) {
-            LogInfof(logger, "DTLS: Fail method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
+            LogDebugf(logger, "DTLS: Fail method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
                 method, SSL_state_string(dtls), SSL_state_string_long(dtls), where, r0, r1);
         }
         else if (r0 < 0) {
             if (r1 != SSL_ERROR_NONE && r1 != SSL_ERROR_WANT_READ && r1 != SSL_ERROR_WANT_WRITE) {
-                LogInfof(logger, "DTLS: Error method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
+                LogDebugf(logger, "DTLS: Error method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
                     method, SSL_state_string(dtls), SSL_state_string_long(dtls), where, r0, r1);
             } else {
-                LogInfof(logger, "DTLS: method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
+                LogDebugf(logger, "DTLS: method=%s state=%s(%s), where=%d, ret=%d, r1=%d",
                     method, SSL_state_string(dtls), SSL_state_string_long(dtls), where, r0, r1);
             }
         }
@@ -154,7 +154,7 @@ static void DtlsStateTrace(RtcDtls *ctx, uint8_t *data, int length, int incoming
     if (length >= 14)
         handshake_type = (uint8_t)data[13];
 
-    LogInfof(logger, "WHIP: DTLS state %s %s, done=%u, arq=%u, len=%u, cnt=%u, size=%u, hs=%u",
+    LogDebugf(logger, "WHIP: DTLS state %s %s, done=%u, arq=%u, len=%u, cnt=%u, size=%u, hs=%u",
         "Active", (incoming? "RECV":"SEND"), ctx->dtls_done_for_us_, ctx->dtls_arq_packets_, length,
         content_type, size, handshake_type);
 }
@@ -223,13 +223,13 @@ RtcDtls::RtcDtls(PeerConnection* pc, Logger* logger):logger_(logger),
     local_pwd_      = ByteCrypto::GetRandomString(32);
 
     fg_algorithm_ = "sha-256";
-    LogInfof(logger_, "fragment:%s, user pwd:%s.\r\n",
+    LogDebugf(logger_, "fragment:%s, user pwd:%s.\r\n",
             local_fragment_.c_str(), local_pwd_.c_str());
 }
 
 RtcDtls::~RtcDtls()
 {
-    LogInfof(logger_, "destruct RtcDtls");
+    LogDebugf(logger_, "destruct RtcDtls");
     if(dtls_pkey_) {
         EVP_PKEY_free(dtls_pkey_);
         dtls_pkey_ = nullptr;
@@ -245,7 +245,7 @@ RtcDtls::~RtcDtls()
 }
 
 int RtcDtls::GenPrivateKey() {
-    LogInfof(logger_, "openssl version:%08x", OPENSSL_VERSION_NUMBER);
+    LogDebugf(logger_, "openssl version:%08x", OPENSSL_VERSION_NUMBER);
 #if OPENSSL_VERSION_NUMBER < 0x30000000L /* OpenSSL 3.0 */
     EC_GROUP *ecgroup = NULL;
 #else
@@ -560,7 +560,7 @@ int RtcDtls::OnState(enum DTLSState state, const char* type, const char* desc) {
     if (state == DTLS_STATE_CLOSED) {
         int64_t now_ms = now_millisec();
         dtls_closed_ = true;
-        LogInfof(logger_, "WHIP: DTLS session closed, type=%s, desc=%s, elapsed=%dms",
+        LogDebugf(logger_, "WHIP: DTLS session closed, type=%s, desc=%s, elapsed=%dms",
             type ? type : "", desc ? desc : "", RTC_ELAPSED(rtc_starttime_, now_ms));
         return ret;
     }
@@ -577,7 +577,7 @@ int RtcDtls::OnState(enum DTLSState state, const char* type, const char* desc) {
 
         state_ = DTLS_STATE_FINISHED;
         rtc_dtls_time_ = now_ms;
-        LogInfof(logger_, "WHIP: DTLS handshake, done=%d, exported=%d, arq=%d, srtp_material=%luB, cost=%dms, elapsed=%dms",
+        LogDebugf(logger_, "WHIP: DTLS handshake, done=%d, exported=%d, arq=%d, srtp_material=%luB, cost=%dms, elapsed=%dms",
             dtls_done_for_us_, dtls_srtp_key_exported_, dtls_arq_packets_, sizeof(dtls_srtp_materials_),
             RTC_ELAPSED(dtls_handshake_starttime_, dtls_handshake_endtime_),
             RTC_ELAPSED(rtc_starttime_, now_ms));
@@ -618,12 +618,12 @@ void RtcDtls::OnDtlsData(uint8_t* buf, int size) {
             return;
         }
     } else {
-        LogInfof(logger_, "DTLS: Read %d bytes, r0=%d, r1=%d", r0, r0, r1);
+        LogDebugf(logger_, "DTLS: Read %d bytes, r0=%d, r1=%d", r0, r0, r1);
     }
 
     /* Check whether the DTLS is completed. */
     if (SSL_is_init_finished(dtls_) != 1) {
-        LogInfof(logger_, "SSL_is_init_finished...");
+        LogDebugf(logger_, "SSL_is_init_finished...");
         return;
     }
 
@@ -660,7 +660,7 @@ int RtcDtls::OnWrite(uint8_t* data, int size) {
         return -1;
     }
 
-    LogInfof(logger_, "dtls write data len:%d, remote address:%s", 
+    LogDebugf(logger_, "dtls write data len:%d, remote address:%s", 
             size, remote_address_.to_string().c_str());
     udp_client_->Write((char*)data, size, remote_address_);
 
@@ -672,11 +672,11 @@ int RtcDtls::DtlsStart()
     int ret = 0, r0, r1;
     char detail_error[256];
 
-    LogInfof(logger_, "dtls start...");
+    LogDebugf(logger_, "dtls start...");
     dtls_handshake_starttime_ = now_millisec();
 
     SSL_set_accept_state(dtls_);
-    LogInfof(logger_, "dtls work in %s mode", (SSL_is_server(dtls_) == 1) ? "server" : "client");
+    LogDebugf(logger_, "dtls work in %s mode", (SSL_is_server(dtls_) == 1) ? "server" : "client");
 
     r0 = SSL_do_handshake(dtls_);
     r1 = SSL_get_error(dtls_, r0);
@@ -767,7 +767,7 @@ int RtcDtls::SetupSRtp(CRYPTO_SUITE_ENUM srtp_suite) {
     memcpy(srtp_remote_masterkey + srtp_keylength, srtp_remote_salt, srtp_saltlength);
 
 
-    LogInfof(logger_, "srtp init connected....");
+    LogDebugf(logger_, "srtp init connected....");
 
     //set srtp parameters
     pc_->OnDtlsConnected(srtp_suite,

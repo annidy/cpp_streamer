@@ -25,7 +25,7 @@ HttpClient::HttpClient(uv_loop_t* loop,
 
 HttpClient::~HttpClient()
 {
-    LogInfof(logger_, "HttpClient destruct...");
+    LogDebugf(logger_, "HttpClient destruct...");
     if (client_) {
         delete client_;
         client_ = nullptr;
@@ -37,7 +37,17 @@ int HttpClient::Get(const std::string& subpath, const std::map<std::string, std:
     subpath_ = subpath;
     headers_ = headers;
 
-    LogInfof(logger_, "http get connect host:%s, port:%d, subpath:%s", host_.c_str(), port_, subpath.c_str());
+    LogDebugf(logger_, "http get connect host:%s, port:%d, subpath:%s", host_.c_str(), port_, subpath.c_str());
+    client_->Connect(host_, port_);
+    return 0;
+}
+
+int HttpClient::Delete(const std::string& subpath, const std::map<std::string, std::string>& headers) {
+    method_  = HTTP_DELETE;
+    subpath_ = subpath;
+    headers_ = headers;
+
+    LogDebugf(logger_, "http delete connect host:%s, port:%d, subpath:%s", host_.c_str(), port_, subpath.c_str());
     client_->Connect(host_, port_);
     return 0;
 }
@@ -49,13 +59,13 @@ int HttpClient::Post(const std::string& subpath, const std::map<std::string, std
     headers_   = headers;
 
     client_->Connect(host_, port_);
-    LogInfof(logger_, "http post connect host:%s, port:%d, subpath:%s, post data:%s", 
+    LogDebugf(logger_, "http post connect host:%s, port:%d, subpath:%s, post data:%s", 
             host_.c_str(), port_, subpath.c_str(), data.c_str());
     return 0;
 }
 
 void HttpClient::Close() {
-    LogInfof(logger_, "http close...");
+    LogDebugf(logger_, "http close...");
     client_->Close();
 }
 
@@ -72,11 +82,13 @@ void HttpClient::OnConnect(int ret_code) {
     }
     std::stringstream http_stream;
 
-    LogInfof(logger_, "on connect code:%d", ret_code);
+    LogDebugf(logger_, "on connect code:%d", ret_code);
     if (method_ == HTTP_GET) {
         http_stream << "GET " << subpath_ << " HTTP/1.1\r\n";
     } else if (method_ == HTTP_POST) {
         http_stream << "POST " << subpath_ << " HTTP/1.1\r\n";
+    } else if (method_ == HTTP_DELETE) {
+        http_stream << "DELETE " << subpath_ << " HTTP/1.1\r\n";
     } else {
         CSM_THROW_ERROR("unkown http method:%d", method_);
     }
@@ -92,7 +104,7 @@ void HttpClient::OnConnect(int ret_code) {
     if (method_ == HTTP_POST) {
         http_stream << post_data_;
     }
-    LogInfof(logger_, "http post:%s", http_stream.str().c_str());
+    LogDebugf(logger_, "http post:%s", http_stream.str().c_str());
     client_->Send(http_stream.str().c_str(), http_stream.str().length());
 }
 
@@ -159,20 +171,20 @@ void HttpClient::OnRead(int ret_code, const char* data, size_t data_size) {
 
                 if (key == "Content-Length") {
                     resp_ptr_->content_length_ = atoi(value.c_str());
-                    LogInfof(logger_, "http content length:%d", resp_ptr_->content_length_);
+                    LogDebugf(logger_, "http content length:%d", resp_ptr_->content_length_);
                 }
                 resp_ptr_->headers_[key] = value;
-                LogInfof(logger_, "header: %s: %s", key.c_str(), value.c_str());
+                LogDebugf(logger_, "header: %s: %s", key.c_str(), value.c_str());
             }
         } else {
-            LogInfof(logger_, "header not ready, read more");
+            LogDebugf(logger_, "header not ready, read more");
             client_->AsyncRead();
             return;
         }
     }
 
     if (resp_ptr_->content_length_ > 0) {
-        LogInfof(logger_, "http receive data len:%lu, content len:%d",
+        LogDebugf(logger_, "http receive data len:%lu, content len:%d",
                 resp_ptr_->data_.DataLen(), resp_ptr_->content_length_);
         if ((int)resp_ptr_->data_.DataLen() >= resp_ptr_->content_length_) {
             resp_ptr_->body_ready_ = true;

@@ -35,15 +35,18 @@ MsPull::MsPull()
 
 MsPull::~MsPull()
 {
-    LogInfof(logger_, "destruct mediasoup pu");
+    LogDebugf(logger_, "destruct mediasoup pu");
+    ReleaseHttpClient(hc_enter_);
     ReleaseHttpClient(hc_req_);
     ReleaseHttpClient(hc_transport_);
     ReleaseHttpClient(hc_video_consume_);
     ReleaseHttpClient(hc_audio_consume_);
+    ReleaseHttpClient(hc_exit_);
     if (pc_) {
         delete pc_;
         pc_ = nullptr;
     }
+    uv_timer_stop(&consume_delay_timer_);
 }
 
 void MsPull::ReleaseHttpClient(HttpClient*& hc) {
@@ -84,10 +87,14 @@ void MsPull::StartNetwork(const std::string& url, void* loop_handle) {
     }
 
     GetHostInfoByUrl(url, host_, port_, 
-            roomId_, userId_,
+            roomId_, producerUid_, userId_,
             video_produce_id_,
             audio_produce_id_);
-    LogInfof(logger_, "http post host:%s, port:%d, roomId:%s, userId:%s, video produceId:%s, audio produceId:%s",
+    if (userId_.empty()) {
+        userId_ = ByteCrypto::GetRandomString(4);
+    }
+    peerId_ = ByteCrypto::GetRandomString(4);
+    LogDebugf(logger_, "http post host:%s, port:%d, roomId:%s, userId:%s, video produceId:%s, audio produceId:%s",
             host_.c_str(), port_, roomId_.c_str(), userId_.c_str(), 
             video_produce_id_.c_str(), audio_produce_id_.c_str());
     loop_ = (uv_loop_t*)loop_handle;
@@ -96,8 +103,12 @@ void MsPull::StartNetwork(const std::string& url, void* loop_handle) {
     pc_->SetMediaCallback(this);
     pc_->SetMsPull(true);
 
-    BroadCasterRequest();
+    EnterRoomRequest();
     return;
+}
+
+void MsPull::StopNetwork() {
+    ExitRoomRequest();
 }
 
 void MsPull::AddOption(const std::string& key, const std::string& value) {
@@ -115,7 +126,7 @@ void MsPull::SetReporter(StreamerReport* reporter) {
     report_ = reporter;
 }
 
-bool MsPull::GetHostInfoByUrl(const std::string& url, std::string& host, uint16_t& port, std::string& roomId, std::string& userId, 
+bool MsPull::GetHostInfoByUrl(const std::string& url, std::string& host, uint16_t& port, std::string& roomId, std::string& producerUid, std::string& userId, 
         std::string& video_produce_id,
         std::string& audio_produce_id) {
     const std::string https_scheme("https://");
@@ -185,9 +196,43 @@ bool MsPull::GetHostInfoByUrl(const std::string& url, std::string& host, uint16_
             video_produce_id = value;
         } else if (name == "apid") {
             audio_produce_id = value;
+        } else if (name == "producerUid") {
+            producerUid = value;
         }
     }
     return true;
+}
+
+void MsPull::EnterRoomRequest() {
+        std::map<std::string, std::string> headers;
+    hc_enter_ = new HttpClient(loop_, host_, port_, this, logger_, true);
+
+    std::stringstream subpath;
+    ///rooms/:roomId/broadcasters
+    subpath << "/rooms/" << roomId_ << "?peerId=" << peerId_;
+    headers["accept"] = "application/json";
+
+    state_ = BROADCASTER_ENTER_ROOM;
+
+    LogDebugf(logger_, "http post subpath:%s",
+            subpath.str().c_str());
+    hc_enter_->Get(subpath.str(), headers);
+}
+
+void MsPull::ExitRoomRequest() {
+    std::map<std::string, std::string> headers;
+    hc_exit_ = new HttpClient(loop_, host_, port_, this, logger_, true);
+
+    std::stringstream subpath;
+    ///rooms/:roomId/broadcasters
+    subpath << "/rooms/" << roomId_ << "/broadcasters" << "/" << userId_ << "?peerId=" << peerId_;
+    headers["accept"] = "application/json";
+
+    state_ = BROADCASTER_EXIT_ROOM;
+
+    LogDebugf(logger_, "http delete subpath:%s",
+            subpath.str().c_str());
+    hc_exit_->Delete(subpath.str(), headers);
 }
 
 void MsPull::BroadCasterRequest() {
@@ -196,7 +241,7 @@ void MsPull::BroadCasterRequest() {
 
     std::stringstream subpath;
     ///rooms/:roomId/broadcasters
-    subpath << "/rooms/" << roomId_ << "/broadcasters";
+    subpath << "/rooms/" << roomId_ << "/broadcasters" << "?peerId=" << peerId_;
 
     headers["content-type"] = "application/json";
     //'content-type: application/json'
@@ -213,20 +258,29 @@ void MsPull::BroadCasterRequest() {
     req_json["device"]          = device_json;
     req_json["rtpCapabilities"] = rtp_json;
 
+    auto numStreams = json::object();
+    numStreams["OS"] = 1024;
+    numStreams["MIS"] = 1024;
+    req_json["sctpCapabilities"] = json::object({
+        {"numStreams", numStreams}
+    });
+
     state_ = BROADCASTER_REQUEST;
 
-    LogInfof(logger_, "http post subpath:%s, json data:%s",
+    LogDebugf(logger_, "http post subpath:%s, json data:%s",
             subpath.str().c_str(), req_json.dump().c_str());
     hc_req_->Post(subpath.str(), headers, req_json.dump());
 }
 
 void MsPull::OnHttpRead(int ret, std::shared_ptr<HttpClientResponse> resp_ptr) {
     if (ret < 0) {
-        LogInfof(logger_, "http request ret:%d", ret);
+        LogErrorf(logger_, "http request ret:%d", ret);
         return;
     }
-    LogInfof(logger_, "http step:%d", state_);
-    if (state_ == BROADCASTER_REQUEST) {
+    LogDebugf(logger_, "http step:%d", state_);
+    if (state_ == BROADCASTER_ENTER_ROOM) {
+        HandleEnterRoomResponse(resp_ptr);
+    } else if (state_ == BROADCASTER_REQUEST) {
         HandleBroadCasterResponse(resp_ptr);
     } else if (state_ == BROADCASTER_TRANSPORT) {
         HandleTransportResponse(resp_ptr);
@@ -236,33 +290,42 @@ void MsPull::OnHttpRead(int ret, std::shared_ptr<HttpClientResponse> resp_ptr) {
         HandleVideoConsumeResponse(resp_ptr);
     } else if (state_ == BROADCASTER_AUDIO_CONSUME) {
         HandleAudioConsumeResponse(resp_ptr);
+    } else if (state_ == BROADCASTER_EXIT_ROOM) {
+        HandleExitRoomResponse(resp_ptr);
     }
-
 }
 
 void MsPull::HandleBroadCasterResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
-    if (resp_ptr->status_code_ != 200) {
-        std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
-        LogErrorf(logger_, "http broadcaster response state:%d, resp:%s", 
+    std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
+    LogDebugf(logger_, "http broadcaster response state:%d, resp:%s", 
                 resp_ptr->status_code_, data_str.c_str());
+    if (resp_ptr->status_code_ != 200) {
+        LogErrorf(logger_, "broadcaster (%s)", data_str.c_str());
+        Report("room", "join fail");
         return;
     }
-    Report("broadcaster", "ready");
+    Report("room", "join");
+    if (producerUid_.empty() && video_produce_id_.empty() && audio_produce_id_.empty()) {
+        return;
+    }
+
+    TransportConnectRequest();
+}
+
+void MsPull::HandleExitRoomResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
     std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
-
-    LogInfof(logger_, "http broad caster response:%s", data_str.c_str());
-
-    TransportRequest();
+    LogDebugf(logger_, "http exit room response:%s", data_str.c_str());
+    Report("close", resp_ptr->status_code_ == 200 ? "ok" : "fail");
 }
 
 void MsPull::HandleTransportResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
     std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
     json data_json = json::parse(data_str);
-    LogInfof(logger_, "http broadcaster response state:%d, resp:%s", 
+    LogDebugf(logger_, "http transport response state:%d, resp:%s", 
             resp_ptr->status_code_, data_str.c_str());
 
     if (resp_ptr->status_code_ != 200) {
-        LogErrorf(logger_, "http broadcaster response state:%d error", resp_ptr->status_code_);
+        LogErrorf(logger_, "transport unable to create (%s)", data_str.c_str());
         return;
     }
     Report("transport_send", "ready");
@@ -298,17 +361,17 @@ void MsPull::HandleTransportResponse(std::shared_ptr<HttpClientResponse> resp_pt
     pc_->SetRemoteUdpAddress(candidate_ip_, candidate_port_);
     pc_->SetFingerPrintsSha256(alg_value_);
 
-    pc_->CreateOfferSdp(RECV_ONLY);
+    pc_->CreateOfferSdp(SEND_RECV);
     pc_->UpdatePcState(PC_SDP_DONE_STATE);
 
-    TransportConnectRequest();
+    BroadCasterRequest();
 
     return;
 }
 
 void MsPull::HandleTransportConnectResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
     std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
-    LogInfof(logger_, "http transport connect response state:%d, resp:%s", 
+    LogDebugf(logger_, "http transport connect response state:%d, resp:%s", 
             resp_ptr->status_code_, data_str.c_str());
     if (resp_ptr->status_code_ != 200) {
         LogErrorf(logger_, "http transport connect response state:%d error", resp_ptr->status_code_);
@@ -324,7 +387,7 @@ void MsPull::ParseVideoConsume(const std::string& data) {
     video_consume_id_ = ret_json["id"];
 
     std::string prd_id = ret_json["producerId"];
-    if (prd_id != video_produce_id_) {
+    if (!video_produce_id_.empty() && prd_id != video_produce_id_) {
         CSM_THROW_ERROR("video consume return produceId(%s) != video produceId(%s)", prd_id.c_str(), video_produce_id_.c_str());
     }
 
@@ -418,7 +481,7 @@ void MsPull::ParseAudioConsume(const std::string& data) {
     audio_consume_id_ = ret_json["id"];
 
     std::string prd_id = ret_json["producerId"];
-    if (prd_id != audio_produce_id_) {
+    if (!audio_produce_id_.empty() && prd_id != audio_produce_id_) {
         CSM_THROW_ERROR("audio consume return produceId(%s) != audio produceId(%s)", prd_id.c_str(), audio_produce_id_.c_str());
     }
 
@@ -489,9 +552,12 @@ void MsPull::ParseAudioConsume(const std::string& data) {
 
 void MsPull::HandleVideoConsumeResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
     std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
-    LogInfof(logger_, "http video consume response state:%d, resp:%s", 
+    LogDebugf(logger_, "http video consume response state:%d, resp:%s", 
             resp_ptr->status_code_, data_str.c_str());
-
+    if (resp_ptr->status_code_ != 200) {
+        LogErrorf(logger_, "unable to get video consume (%s)", data_str.c_str());
+        return;
+    }
     ParseVideoConsume(data_str);
     pc_->CreateVideoRecvStream();
     AudioConsumeRequest();
@@ -499,10 +565,26 @@ void MsPull::HandleVideoConsumeResponse(std::shared_ptr<HttpClientResponse> resp
 
 void MsPull::HandleAudioConsumeResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
     std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
-    LogInfof(logger_, "http audio consume response state:%d, resp:%s", 
+    LogDebugf(logger_, "http audio consume response state:%d, resp:%s", 
             resp_ptr->status_code_, data_str.c_str());
+    if (resp_ptr->status_code_ != 200) {
+        LogErrorf(logger_, "unable to get audio consume (%s)", data_str.c_str());
+        return;
+    }
     ParseAudioConsume(data_str);
     pc_->CreateAudioRecvStream();
+}
+
+void MsPull::HandleEnterRoomResponse(std::shared_ptr<HttpClientResponse> resp_ptr) {
+    std::string data_str(resp_ptr->data_.Data(), resp_ptr->data_.DataLen());
+    LogDebugf(logger_, "http enter room response state:%d, resp:%s", 
+            resp_ptr->status_code_, data_str.c_str());
+    if (resp_ptr->status_code_ != 200) {
+        LogErrorf(logger_, "enter room fail (%s)", data_str.c_str());
+        Report("room", "enter fail");
+        return;
+    }
+    TransportRequest();
 }
 
 void MsPull::TransportRequest() {
@@ -513,7 +595,7 @@ void MsPull::TransportRequest() {
     ///rooms/:roomId/broadcasters/:broadcasterId/transports
     subpath << "/rooms/" << roomId_ << "/broadcasters/"
         << userId_ << "/transports"
-        << "?broadcasterId=" << userId_;
+        << "?broadcasterId=" << userId_  << "&peerId=" << peerId_;
 
     headers["content-type"] = "application/json";
 
@@ -537,7 +619,7 @@ void MsPull::TransportConnectRequest() {
         << userId_ << "/transports/"
         << transport_id_ << "/connect"
         << "?broadcasterId=" << userId_ << "&"
-        << "transportId=" << transport_id_;
+        << "transportId=" << transport_id_  << "&peerId=" << peerId_;
 
     headers["content-type"] = "application/json";
 
@@ -556,10 +638,14 @@ void MsPull::TransportConnectRequest() {
 
     state_ = BROADCASTER_TRANSPORT_CONNECT;
 
-    LogInfof(logger_, "http post Transport connect subpath:%s, data:%s", subpath.str().c_str(), req_json.dump().c_str());
+    LogDebugf(logger_, "http post Transport connect subpath:%s, data:%s", subpath.str().c_str(), req_json.dump().c_str());
     hc_trans_connect_->Post(subpath.str(), headers, req_json.dump().c_str());
 }
 
+void OnConsumeDelay(uv_timer_t* handle) {
+    MsPull* ms_pull = static_cast<MsPull*>(handle->data);
+    ms_pull->VideoConsumeRequest();
+}
 void MsPull::OnState(const std::string& type, const std::string& value) {
     LogDebugf(logger_, "mediasoup state type:%s, value:%s",
             type.c_str(), value.c_str());
@@ -567,7 +653,9 @@ void MsPull::OnState(const std::string& type, const std::string& value) {
         int64_t diff_t = now_millisec() - start_ms_;
         LogInfof(logger_, "mediasoup connect cost %ldms", diff_t);
         Report("dtls", "ready");
-        VideoConsumeRequest();
+        uv_timer_init(loop_, &consume_delay_timer_);
+        consume_delay_timer_.data = this;
+        uv_timer_start(&consume_delay_timer_, OnConsumeDelay, 3000, 0);
         return;
     }
     Report(type, value);
@@ -582,7 +670,7 @@ void MsPull::VideoConsumeRequest() {
     */
     subpath << "/rooms/" << roomId_ << "/broadcasters/"
         << userId_ << "/transports/" << transport_id_ << "/consume"
-        << "?producerId=" << video_produce_id_;
+        << "?producerId=" << video_produce_id_  << "&peerId=" << peerId_ << "&producerUid=" << producerUid_ << "&kind=video";
 
     headers["content-type"] = "application/json";
 
@@ -593,7 +681,7 @@ void MsPull::VideoConsumeRequest() {
 
     state_ = BROADCASTER_VIDEO_CONSUME;
 
-    LogInfof(logger_, "http post video consume subpath:%s, data:%s", subpath.str().c_str(), req_json.dump().c_str());
+    LogDebugf(logger_, "http post video consume subpath:%s, data:%s", subpath.str().c_str(), req_json.dump().c_str());
     hc_video_consume_->Post(subpath.str(), headers, req_json.dump().c_str());
 
 }
@@ -607,7 +695,7 @@ void MsPull::AudioConsumeRequest() {
     */
     subpath << "/rooms/" << roomId_ << "/broadcasters/"
         << userId_ << "/transports/" << transport_id_ << "/consume"
-        << "?producerId=" << audio_produce_id_;
+        << "?producerId=" << audio_produce_id_  << "&peerId=" << peerId_ << "&producerUid=" << producerUid_ << "&kind=audio";
 
     headers["content-type"] = "application/json";
 
@@ -618,10 +706,8 @@ void MsPull::AudioConsumeRequest() {
 
     state_ = BROADCASTER_AUDIO_CONSUME;
 
-    LogInfof(logger_, "http post audio consume subpath:%s, data:%s", subpath.str().c_str(), req_json.dump().c_str());
+    LogDebugf(logger_, "http post audio consume subpath:%s, data:%s", subpath.str().c_str(), req_json.dump().c_str());
     hc_audio_consume_->Post(subpath.str(), headers, req_json.dump().c_str());
-
-
 }
 
 void MsPull::Report(const std::string& type, const std::string& value) {

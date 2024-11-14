@@ -42,12 +42,11 @@ Logger* SRtpSession::logger_ = nullptr;
 
 void SRtpSession::Init(Logger* logger) {
     if (init_) {
-        LogInfof(SRtpSession::logger_, "srtp session has been initialized.");
         return;
     }
     logger_ = logger;
 
-    LogInfof(logger, "libsrtp version: <%s>", srtp_get_version_string());
+    LogDebugf(logger, "libsrtp version: <%s>", srtp_get_version_string());
 
     srtp_err_status_t err = srtp_init();
     if ((err != srtp_err_status_ok)) {
@@ -59,7 +58,7 @@ void SRtpSession::Init(Logger* logger) {
         CSM_THROW_ERROR("set srtp_install_event_handler error: %s", SRtpSession::errors.at(err));
     }
     init_ = true;
-    LogInfof(logger, "srtp session init ok...");
+    LogDebugf(logger, "srtp session init ok...");
 }
 
 void SRtpSession::OnSRtpEvent(srtp_event_data_t* data) {
@@ -163,13 +162,13 @@ SRtpSession::SRtpSession(SRTP_SESSION_TYPE session_type, CRYPTO_SUITE_ENUM suite
 
     if (err != srtp_err_status_ok) {
         CSM_THROW_ERROR("srtp_create error: %s", SRtpSession::errors.at(err));
-    LogInfof(SRtpSession::logger_, "srtp session construct, type:<%s>, suite:%s",
+    LogDebugf(SRtpSession::logger_, "srtp session construct, type:<%s>, suite:%s",
         session_desc.c_str(), suite_desc.c_str());
     }
 }
 
 SRtpSession::~SRtpSession() {
-    LogInfof(logger_, "destruct SRtpSession");
+    LogDebugf(logger_, "destruct SRtpSession");
     if (session_ != nullptr) {
         srtp_err_status_t err = srtp_dealloc(session_);
         if (err != srtp_err_status_ok)

@@ -13,7 +13,7 @@
 
 namespace cpp_streamer
 {
-#define BUFFER_POOL_SIZE 2048
+#define BUFFER_POOL_SIZE 64
 
 class JitterBuffer : public TimerInterface
 {

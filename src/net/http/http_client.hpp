@@ -15,7 +15,8 @@ namespace cpp_streamer
 
 typedef enum {
     HTTP_GET,
-    HTTP_POST
+    HTTP_POST,
+    HTTP_DELETE
 } HTTP_METHOD;
 
 class HttpClientResponse
@@ -48,6 +49,7 @@ public:
 public:
     int Get(const std::string& subpath, const std::map<std::string, std::string>& headers);
     int Post(const std::string& subpath, const std::map<std::string, std::string>& headers, const std::string& data);
+    int Delete(const std::string& subpath, const std::map<std::string, std::string>& headers);
     void Close();
     TcpClient* GetTcpClient();
     

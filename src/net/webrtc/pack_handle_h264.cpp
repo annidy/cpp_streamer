@@ -181,7 +181,7 @@ void PackHandleH264::CheckFuaTimeout() {
             break;
         }
         packets_queue_.pop_front();
-        LogWarnf(logger_, "h264 fua list is timeout, packet pop seq:%d", pkt_ptr->pkt->GetSeq());
+        LogDebugf(logger_, "h264 fua list is timeout, packet pop seq:%d", pkt_ptr->pkt->GetSeq());
     }
     return;
 }
@@ -307,7 +307,7 @@ bool PackHandleH264::DemuxFua(Media_Packet_Ptr h264_pkt_ptr, int64_t& timestamp)
         }
     }
     if (!has_start || !has_end) {
-        LogErrorf(logger_, "rtp h264 demux fua error: has start:%d, has end:%d", has_start, has_end);
+        LogDebugf(logger_, "rtp h264 demux fua error: has start:%d, has end:%d", has_start, has_end);
         return false;
     }
     return true;

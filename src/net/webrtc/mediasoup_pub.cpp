@@ -11,8 +11,10 @@ static void GetAudioCodec(json& audio_codec_obj) {
     audio_codec_obj["mimeType"]             = "audio/opus";
     audio_codec_obj["clockRate"]            = 48000;
     audio_codec_obj["channels"]             = 2;
-    audio_codec_obj["preferredPayloadType"] = 111;
+    audio_codec_obj["preferredPayloadType"] = 100;
     audio_codec_obj["parameters"] = json::object();
+    audio_codec_obj["parameters"]["minptime"] = 10;
+    audio_codec_obj["parameters"]["useinbandfec"] = 1;
 
     auto audio_rtcpFeedback_array = json::array();
     auto rtcpFeedback_nack = json::object();
@@ -42,17 +44,6 @@ static void GetH264Codec(json& video_codec_obj, const std::string& profile_level
     video_codec_obj["parameters"] = parameters_obj;
 
     auto nack_obj = json::object();
-    nack_obj["type"]      = "nack";
-    nack_obj["parameter"] = "";
-
-    auto pli_obj = json::object();
-    pli_obj["type"]      = "nack";
-    pli_obj["parameter"] = "pli";
-
-    auto fir_obj = json::object();
-    fir_obj["type"]      = "ccm";
-    fir_obj["parameter"] = "fir";
-
     auto remb_obj = json::object();
     remb_obj["type"]      = "goog-remb";     
     remb_obj["parameter"] = "";
@@ -60,6 +51,17 @@ static void GetH264Codec(json& video_codec_obj, const std::string& profile_level
     auto tcc_obj = json::object();
     tcc_obj["type"] = "transport-cc";
     tcc_obj["parameter"] = "";
+
+    auto fir_obj = json::object();
+    fir_obj["type"]      = "ccm";
+    fir_obj["parameter"] = "fir";
+
+    nack_obj["type"]      = "nack";
+    nack_obj["parameter"] = "";
+
+    auto pli_obj = json::object();
+    pli_obj["type"]      = "nack";
+    pli_obj["parameter"] = "pli";
 
     auto rtcp_fb_array = json::array();
     rtcp_fb_array.push_back(nack_obj);
@@ -77,7 +79,7 @@ static void GetRtxCodec(json& rtx_codec_obj, int payload_type) {
     rtx_codec_obj["clockRate"] = 90000;
     rtx_codec_obj["preferredPayloadType"] = payload_type;
     auto paramters_obj = json::object();
-    paramters_obj["apt"] = 106;
+    paramters_obj["apt"] = payload_type -1;
     rtx_codec_obj["parameters"] = paramters_obj;
     rtx_codec_obj["rtcpFeedback"] = json::array();
 }
@@ -92,19 +94,19 @@ static void GetCodecs(json& codecs_array) {
     std::string baseline = "42e01f";
     std::string main = "4d001f";
     
-    GetH264Codec(baseline_codec_obj, baseline, 106);
-    GetRtxCodec(baseline_rtx_codec_obj, 107);
-    GetH264Codec(main_codec_obj, main, 108);
-    GetRtxCodec(main_rtx_codec_obj, 109);
+    GetH264Codec(baseline_codec_obj, baseline, 107);
+    GetRtxCodec(baseline_rtx_codec_obj, 108);
+    GetH264Codec(main_codec_obj, main, 105);
+    GetRtxCodec(main_rtx_codec_obj, 106);
 
     GetAudioCodec(audio_codec_obj);
 
     codecs_array = json::array();
     codecs_array.push_back(baseline_codec_obj);
-    codecs_array.push_back(main_codec_obj);
-    codecs_array.push_back(audio_codec_obj);
     codecs_array.push_back(baseline_rtx_codec_obj);
+    codecs_array.push_back(main_codec_obj);
     codecs_array.push_back(main_rtx_codec_obj);
+    codecs_array.push_back(audio_codec_obj);
 }
 
 void GetHeaderExts(json& header_exts) {
@@ -118,28 +120,12 @@ void GetHeaderExts(json& header_exts) {
     header_exts.push_back(audio_mid_obj);
 
     auto video_mid_obj = json::object();
-    video_mid_obj["kind"]             = "audio";
+    video_mid_obj["kind"]             = "video";
     video_mid_obj["uri"]              = "urn:ietf:params:rtp-hdrext:sdes:mid";
     video_mid_obj["preferredId"]      = 1;
     video_mid_obj["preferredEncrypt"] = false;
     video_mid_obj["direction"]        = "sendrecv";
     header_exts.push_back(video_mid_obj);
-
-    auto rtp_streamid_obj = json::object();
-    rtp_streamid_obj["kind"]             = "video";
-    rtp_streamid_obj["uri"]              = "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id";
-    rtp_streamid_obj["preferredId"]      = 2;
-    rtp_streamid_obj["preferredEncrypt"] = false;
-    rtp_streamid_obj["direction"]        = "recvonly";
-    header_exts.push_back(rtp_streamid_obj);
-
-    auto repair_streamid_obj = json::object();
-    repair_streamid_obj["kind"]             = "video";
-    repair_streamid_obj["uri"]              = "urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id";
-    repair_streamid_obj["preferredId"]      = 3;
-    repair_streamid_obj["preferredEncrypt"] = false;
-    repair_streamid_obj["direction"]        = "recvonly";
-    header_exts.push_back(repair_streamid_obj);
 
     auto audio_abs_time = json::object();
     audio_abs_time["kind"]             = "audio";
@@ -157,29 +143,37 @@ void GetHeaderExts(json& header_exts) {
     video_abs_time["direction"]        = "sendrecv";
     header_exts.push_back(video_abs_time);
 
-    auto audio_twc_obj = json::object();
-    audio_twc_obj["kind"]             = "audio";
-    audio_twc_obj["uri"]              = "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01";
-    audio_twc_obj["preferredId"]      = 5;
-    audio_twc_obj["preferredEncrypt"] = false;
-    audio_twc_obj["direction"]        = "recvonly";
-    header_exts.push_back(audio_twc_obj);
-
     auto video_twc_obj = json::object();
     video_twc_obj["kind"]             = "video";
     video_twc_obj["uri"]              = "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01";
     video_twc_obj["preferredId"]      = 5;
     video_twc_obj["preferredEncrypt"] = false;
-    video_twc_obj["direction"]        = "recvonly";
+    video_twc_obj["direction"]        = "sendrecv";
     header_exts.push_back(video_twc_obj);
 
     auto audio_level_obj = json::object();
     audio_level_obj["kind"]             = "audio";
     audio_level_obj["uri"]              = "urn:ietf:params:rtp-hdrext:ssrc-audio-level";
-    audio_level_obj["preferredId"]      = 5;
+    audio_level_obj["preferredId"]      = 10;
     audio_level_obj["preferredEncrypt"] = false;
-    audio_level_obj["direction"]        = "recvonly";
+    audio_level_obj["direction"]        = "sendrecv";
     header_exts.push_back(audio_level_obj);
+
+    auto video_ori_obj = json::object();
+    video_ori_obj["kind"]             = "video";
+    video_ori_obj["uri"]              = "urn:3gpp:video-orientation";
+    video_ori_obj["preferredId"]      = 11;
+    video_ori_obj["preferredEncrypt"] = false;
+    video_ori_obj["direction"]        = "sendrecv";
+    header_exts.push_back(video_ori_obj);
+
+    auto video_toffset_obj = json::object();
+    video_toffset_obj["kind"]             = "video";
+    video_toffset_obj["uri"]              = "urn:ietf:params:rtp-hdrext:toffset";
+    video_toffset_obj["preferredId"]      = 12;
+    video_toffset_obj["preferredEncrypt"] = false;
+    video_toffset_obj["direction"]        = "sendrecv";
+    header_exts.push_back(video_toffset_obj);
 }
 
 void GetRtpCapabilities(json& json_obj) {

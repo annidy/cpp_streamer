@@ -14,14 +14,14 @@ namespace cpp_streamer
 RtpPacket* RtpPacket::Parse(uint8_t* data, size_t len) {
     RtpCommonHeader* header = (RtpCommonHeader*)data;
     HeaderExtension* ext = nullptr;
-    uint8_t* p = (uint8_t*)(header + 1);
+    uint8_t* p = (uint8_t*)(header + 1); // p is possible payload
 
     if (len > RTP_PACKET_MAX_SIZE) {
         CSM_THROW_ERROR("rtp len(%lu) is to large", len);
     }
 
     if (header->csrc_count > 0) {
-        p += 4 * header->csrc_count;
+        p += 4 * header->csrc_count;   // add csrc count
     }
 
     if (header->extension) {

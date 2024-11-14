@@ -18,7 +18,7 @@ case $1 in
      fi
      cd objs
      cmake ..
-     make -j 2
+     make
      ;;
 
 esac

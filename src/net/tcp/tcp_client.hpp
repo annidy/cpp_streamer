@@ -131,7 +131,7 @@ public:
         //    throw CppStreamException("connect address error");
         //}
         connect_->data = this;
-        LogInfof(logger_, "start connect host:%s:%d", dst_ip.c_str(), htons(dst_port));
+        LogDebugf(logger_, "start connect host:%s:%d", dst_ip.c_str(), htons(dst_port));
 
         if ((r = uv_tcp_connect(connect_, client_,
                             (const struct sockaddr*)&dst_addr_,
@@ -198,7 +198,7 @@ private:
         if (status == 0) {
             is_connect_ = true;
         }
-        LogInfof(logger_, "tcp connected ssl enable:%s", ssl_enable_ ? "true" : "false");
+        LogDebugf(logger_, "tcp connected ssl enable:%s", ssl_enable_ ? "true" : "false");
         if (!ssl_enable_) {
             if (callback_) {
                 callback_->OnConnect(status);
@@ -263,7 +263,7 @@ private:
             } else if (ret > 0) {
                 AsyncRead();
             } else {
-                LogInfof(logger_, "Ssl Client Hello Done");
+                LogDebugf(logger_, "Ssl Client Hello Done");
             }
         } else if (state == TLS_CLIENT_KEY_EXCHANGE) {
             ret = ssl_client_->HandleSessionTicket(buf->base, nread);
@@ -272,7 +272,7 @@ private:
             } else if (ret > 0) {
                 AsyncRead();
             } else {
-                LogInfof(logger_, "ssl client handshake done");
+                LogDebugf(logger_, "ssl client handshake done");
                 callback_->OnConnect(0);
             }
         } else if (state == TLS_CLIENT_READY) {

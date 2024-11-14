@@ -16,6 +16,7 @@
 using namespace cpp_streamer;
 
 static Logger* s_logger = nullptr;
+static int is_exit = 0;
 
 class MsPull2MpegtsStreamerMgr: public StreamerReport, public CppStreamerInterface
 {
@@ -62,6 +63,15 @@ public:
         }
     }
 
+    void Stop() {
+        LogInfof(logger_, "stop network url:%s", src_url_.c_str());
+        try {
+            mspull_streamer_->StopNetwork();
+        } catch(CppStreamException& e) {
+            LogErrorf(logger_, "mspull stop network exception:%s", e.what());
+        }
+    }
+
 public:
     virtual void OnReport(const std::string& name,
             const std::string& type,
@@ -75,6 +85,10 @@ public:
         }
         if (type == "error") {
             mspull_ready_ = false;
+        }
+        if (type == "close") {
+            is_exit = 1;
+            uv_stop(loop_);
         }
     }
 
@@ -125,6 +139,15 @@ private:
     CppStreamerInterface* ts_streamer_       = nullptr;
 };
 
+
+uv_signal_t signal_handle;
+std::shared_ptr<MsPull2MpegtsStreamerMgr> mgr_ptr;
+
+void on_signal(uv_signal_t* handle, int signum) {
+    printf("Received SIGINT (Ctrl-C), shutting down gracefully...\n");
+    uv_signal_stop(handle);
+    mgr_ptr->Stop();
+}
 /*
  ./mediasoup_pull_demo -i "https://xxxxx.com?roomId=100&userId=1000&vpid=xxxxx&apid=xxxx" -o 1000.ts
  */
@@ -138,7 +161,7 @@ int main(int argc, char** argv) {
     bool output_ts_name_ready = false;
     bool log_file_ready = false;
 
-    while ((opt = getopt(argc, argv, "i:o:l:h")) != -1) {
+    while ((opt = getopt(argc, argv, "i:o:l:s:h")) != -1) {
         switch (opt) {
             /*eg: "https://xxxxx.com?roomId=100&userId=1000&vpid=xxxx&apid=xxxx"*/
             case 'i': strncpy(input_url_name, optarg, sizeof(input_url_name)); input_url_name_ready = true; break;
@@ -172,9 +195,10 @@ int main(int argc, char** argv) {
     LogInfof(s_logger, "mspull2mpegts streamer manager is starting, input mspull:%s, output mpegts:%s",
             input_url_name, output_ts_name);
     uv_loop_t* loop = uv_default_loop();
+    uv_signal_init(loop, &signal_handle);
+    uv_signal_start(&signal_handle, on_signal, SIGINT);
 
-    std::shared_ptr<MsPull2MpegtsStreamerMgr> mgr_ptr = std::make_shared<MsPull2MpegtsStreamerMgr>(input_url_name, output_ts_name);
-
+    mgr_ptr = std::make_shared<MsPull2MpegtsStreamerMgr>(input_url_name, output_ts_name);
     mgr_ptr->SetLogger(s_logger);
 
     if (mgr_ptr->MakeStreamers(loop) < 0) {
@@ -183,9 +207,9 @@ int main(int argc, char** argv) {
     }
     LogInfof(s_logger, "mspull to mpegts is starting......");
     mgr_ptr->Start();
-    while (true) {
+    while (is_exit == 0) {
         uv_run(loop, UV_RUN_DEFAULT);
     }
- 
+    LogInfof(s_logger, "exit");
     return 0;
 }
