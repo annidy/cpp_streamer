@@ -11,7 +11,11 @@ ADD CMakeLists.txt CMakeLists.txt
 RUN cmake . && cmake --build . --target mediasoup_pull_bench
 
 FROM ubuntu:20.04
-RUN apt-get update && apt-get install -y tzdata
+# RUN apt-get update && apt-get install -y tzdata gdb
+
+RUN sed -i 's@archive.ubuntu.com@mirrors.aliyun.com@g' /etc/apt/sources.list && \
+    sed -i 's@security.ubuntu.com@mirrors.aliyun.com@g' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y tzdata gdb
 
 ENV TZ=Asia/Shanghai
 ENV LD_LIBRARY_PATH=/app/output/lib
